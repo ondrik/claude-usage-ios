@@ -49,6 +49,25 @@ the widget in the order shown there.
 Upgrading from the single-account version: your existing token is moved over automatically
 as an account named *Claude*. You can rename it under **Manage accounts**.
 
+### Installing without copy and paste
+
+Scriptable keeps scripts as plain files in **iCloud Drive › Scriptable**. On any computer,
+open [icloud.com/iclouddrive](https://www.icloud.com/iclouddrive) in a browser and drag
+`claude-usage.js` into that folder. It appears in Scriptable a few seconds later.
+Alternatively, on the iPhone, open the
+[raw file](https://raw.githubusercontent.com/ondrik/claude-usage-ios/master/claude-usage.js)
+in Safari and choose Share → Save to Files → iCloud Drive › Scriptable.
+
+### Updating
+
+Run the script in the app and choose **Update from GitHub**. It downloads the latest
+`claude-usage.js` from this repository's `master` branch, asks before replacing itself, and
+keeps your accounts. Run the script again afterwards to use the new version. Widgets pick
+it up on their next refresh.
+
+The update replaces the script with whatever is on `master`. That code can read the
+tokens stored in the Keychain, so only use the update button with a repository you trust.
+
 ## Choosing accounts
 
 - With an empty **Parameter**, the widget shows all accounts.

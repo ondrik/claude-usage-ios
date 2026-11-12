@@ -22,6 +22,7 @@ const CACHE_FILE = "claude-usage-cache.json";
 const MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 const PING_MODEL = "claude-haiku-5-5";
 const REFRESH_MINUTES = 15;
+const UPDATE_URL = "https://raw.githubusercontent.com/ondrik/claude-usage-ios/master/claude-usage.js";
 
 const COLORS = {
   bg: Color.dynamic(new Color("#F5F1EA"), new Color("#1F1E1C")),
@@ -601,6 +602,43 @@ async function manageAccount(accounts, idx) {
   saveAccounts(accounts);
 }
 
+// Replace this script with the latest version from GitHub. Returns true if the
+// script file was replaced (the caller should then stop, as old code is running).
+async function updateScript() {
+  let latest;
+  try {
+    const req = new Request(UPDATE_URL);
+    req.timeoutInterval = 20;
+    latest = await req.loadString();
+    const status = req.response && req.response.statusCode;
+    if (status !== 200) throw new Error(`HTTP ${status}`);
+  } catch (e) {
+    await info("Update failed", `Could not download the script: ${e.message || e}`);
+    return false;
+  }
+  if (!latest.includes("Claude usage widget for Scriptable") || !latest.includes("async function fetchUsage")) {
+    await info("Update failed", "The downloaded file doesn't look like this script.");
+    return false;
+  }
+  const path = module.filename;
+  const icloud = FileManager.iCloud();
+  const fm = icloud.isFileStoredIniCloud(path) ? icloud : FileManager.local();
+  if (fm === icloud) await icloud.downloadFileFromiCloud(path);
+  if (fm.readString(path) === latest) {
+    await info("Up to date", "You already have the latest version.");
+    return false;
+  }
+  const a = new Alert();
+  a.title = "Update available";
+  a.message = "Replace this script with the latest version from GitHub? Your accounts are kept.";
+  a.addAction("Update");
+  a.addCancelAction("Cancel");
+  if ((await a.present()) === -1) return false;
+  fm.writeString(path, latest);
+  await info("Updated", "Run the script again to use the new version. Widgets pick it up on their next refresh.");
+  return true;
+}
+
 async function mainMenu() {
   for (;;) {
     const accounts = loadAccounts();
@@ -608,6 +646,7 @@ async function mainMenu() {
     if (accounts.length) opts.push("Preview small", "Preview medium", "Preview large");
     opts.push("Add account");
     if (accounts.length) opts.push("Manage accounts");
+    opts.push("Update from GitHub");
     const msg = accounts.length ? `Accounts: ${accounts.map((a) => a.name).join(", ")}` : "No accounts yet.";
     const i = await choose("Claude usage", msg, opts);
     if (i === -1) return;
@@ -620,6 +659,8 @@ async function mainMenu() {
       else await widget.presentMedium();
     } else if (op === "Add account") {
       await addAccount(accounts);
+    } else if (op === "Update from GitHub") {
+      if (await updateScript()) return;
     } else {
       const j = await choose("Manage accounts", null, accounts.map((a) => a.name));
       if (j !== -1) await manageAccount(accounts, j);
