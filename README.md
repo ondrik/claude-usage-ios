@@ -2,40 +2,62 @@
 
 An iPhone widget that shows how much of your Claude subscription limits you've used: the
 **5-hour session** limit and the **weekly** limit, with the time until each resets.
+It works with **several Claude accounts** at once.
 It is a single [Scriptable](https://scriptable.app) script, so you don't need a Mac,
 Xcode or an Apple developer account.
 
 ## Widget sizes
 
-| Size | Shows |
-|---|---|
-| Small (home screen) | Two progress bars (session and weekly) with the time until each resets |
-| Medium (home screen) | Two rings with percentages and reset times |
-| Lock screen, rectangular | Bars for `5h` and `7d`, plus when the session resets |
-| Lock screen, circular | A ring with the session percentage |
+A widget shows either **all accounts** or **one account**, depending on its *Parameter*
+field (see [Choosing accounts](#choosing-accounts)).
+
+| Size | All accounts | One account |
+|---|---|---|
+| Small | One line per account with the session and weekly percentages (up to 5 accounts) | Two progress bars with the time until each resets |
+| Medium | A row per account with bars, percentages and reset times (up to 3 accounts) | Two rings with percentages and reset times |
+| Large | Like medium, up to 7 accounts | Same as medium |
+| Lock screen, rectangular | `name  session% · weekly%`, up to 3 accounts | Bars for `5h` and `7d`, plus when the session resets |
+| Lock screen, circular | Session ring of the first account | Session ring of that account |
 
 The colour changes as usage grows: orange below 70%, yellow from 70%, red from 90%.
 If a refresh fails, the widget shows the last numbers it fetched and marks them `⚠︎ offline`.
+An account with an invalid token is marked `⚠︎ error`.
 
 ## Setup
 
-1. **Get a token.** On a computer with [Claude Code](https://claude.com/claude-code)
-   installed, run:
+1. **Get a token for each account.** On a computer with
+   [Claude Code](https://claude.com/claude-code) installed, run:
    ```
    claude setup-token
    ```
-   Log in in the browser. The command prints a long-lived token (`sk-ant-oat01-…`).
+   Log in in the browser with the account you want. The command prints a long-lived token
+   (`sk-ant-oat01-…`). Repeat for every account, logging in with a different one each time.
 2. **Install [Scriptable](https://apps.apple.com/app/scriptable/id1405459188)** from the
    App Store.
 3. In Scriptable, create a new script and paste in the contents of
    [`claude-usage.js`](claude-usage.js).
-4. **Run the script once** in the app and paste the token when it asks. The token is kept
-   in the iOS Keychain.
+4. **Run the script** in the app, choose **Add account**, and enter a name (for example
+   *Work*) and the token. The token is tested before it's saved, and kept in the iOS
+   Keychain. Repeat for each account.
 5. **Add the widget.** Long-press the home screen (or the lock screen), add a *Scriptable*
    widget, edit it and choose this script under *Script*.
 
-Run the script in the app again whenever you want to preview the widget, replace the token
-or delete it.
+Run the script in the app again whenever you want to preview the widget, or to add, rename,
+reorder, delete an account or replace its token (**Manage accounts**). Accounts appear in
+the widget in the order shown there.
+
+Upgrading from the single-account version: your existing token is moved over automatically
+as an account named *Claude*. You can rename it under **Manage accounts**.
+
+## Choosing accounts
+
+- With an empty **Parameter**, the widget shows all accounts.
+- To show one account, edit the widget and type that account's name into the
+  **Parameter** field. The match ignores upper and lower case. For example, you can have
+  one medium widget for *Work* and another for *Personal*.
+
+Each refresh sends one request per account shown, so a single-account widget only uses
+that account's quota.
 
 ## How it works
 
@@ -83,7 +105,7 @@ globalThis.Request = class {
   }
 };
 globalThis.Color = class { static dynamic() { return null; } };
-const src = fs.readFileSync("claude-usage.js", "utf8").split("// ---------- formatting")[0];
+const src = fs.readFileSync("claude-usage.js", "utf8").split("// Fetch all accounts")[0];
 console.log(await new Function("token", src + "\nreturn fetchUsage(token);")(process.argv[2]));
 ```
 
