@@ -154,27 +154,28 @@ function pctText(w) {
   return w ? `${Math.round(w.pct)}%` : "–";
 }
 
-function barImage(pct, width, height) {
-  const ctx = new DrawContext();
-  ctx.size = new Size(width, height);
-  ctx.opaque = false;
-  ctx.respectScreenScale = true;
-  const r = height / 2;
-  const track = new Path();
-  track.addRoundedRect(new Rect(0, 0, width, height), r, r);
-  ctx.addPath(track);
-  ctx.setFillColor(COLORS.track);
-  ctx.fillPath();
-  const w = Math.max(height, (width * Math.min(100, Math.max(0, pct))) / 100);
-  if (pct > 0) {
-    const fill = new Path();
-    fill.addRoundedRect(new Rect(0, 0, w, height), r, r);
-    ctx.addPath(fill);
-    ctx.setFillColor(colorFor(pct));
-    ctx.fillPath();
+// Progress bar built from stacks (not a drawn image) so that dynamic
+// light/dark colours are resolved by iOS at display time.
+function addBar(parent, pct, width, height, fillColor, trackColor) {
+  const track = parent.addStack();
+  track.size = new Size(width, height);
+  track.cornerRadius = height / 2;
+  track.backgroundColor = trackColor || COLORS.track;
+  track.layoutHorizontally();
+  const p = Math.min(100, Math.max(0, pct || 0));
+  if (p > 0) {
+    const fill = track.addStack();
+    fill.size = new Size(Math.max(height, (width * p) / 100), height);
+    fill.cornerRadius = height / 2;
+    fill.backgroundColor = fillColor || colorFor(p);
   }
-  return ctx.getImage();
+  track.addSpacer();
+  return track;
 }
+
+// Drawn images can't use dynamic colours, so rings use a track that works on
+// both light and dark backgrounds.
+const RING_TRACK = new Color("#8E8A82", 0.3);
 
 function ringImage(pct, size, lineWidth, color, trackColor) {
   const ctx = new DrawContext();
@@ -263,8 +264,7 @@ function addRow(stack, label, win, barWidth) {
   v.font = Font.boldRoundedSystemFont(16);
   v.textColor = win ? colorFor(pct) : COLORS.dim;
   stack.addSpacer(3);
-  const img = stack.addImage(barImage(pct, barWidth, 7));
-  img.imageSize = new Size(barWidth, 7);
+  addBar(stack, pct, barWidth, 7);
   stack.addSpacer(2);
   const r = stack.addText(win && win.resetsAt ? `resets in ${timeLeft(win.resetsAt)}` : " ");
   r.font = Font.systemFont(10);
@@ -294,7 +294,7 @@ function singleMedium(d) {
     const pct = win ? win.pct : 0;
     const ringStack = col.addStack();
     ringStack.size = new Size(72, 72);
-    ringStack.backgroundImage = ringImage(pct, 72, 8, colorFor(pct), COLORS.track);
+    ringStack.backgroundImage = ringImage(pct, 72, 8, colorFor(pct), RING_TRACK);
     ringStack.centerAlignContent();
     const v = ringStack.addText(pctText(win));
     v.font = Font.boldRoundedSystemFont(18);
@@ -321,9 +321,7 @@ function singleAccessoryRect(d) {
     const l = s.addText(label);
     l.font = Font.semiboldSystemFont(12);
     s.addSpacer(4);
-    const img = s.addImage(barImage(win ? win.pct : 0, 60, 6));
-    img.imageSize = new Size(60, 6);
-    img.tintColor = Color.white();
+    addBar(s, win ? win.pct : 0, 60, 6, Color.white(), new Color("#FFFFFF", 0.3));
     s.addSpacer(4);
     const v = s.addText(pctText(win));
     v.font = Font.boldRoundedSystemFont(12);
@@ -350,14 +348,18 @@ function singleAccessoryCircular(d) {
 
 // ---------- multi-account widgets ----------
 
-function cell(row, text, width, font, color) {
+// Fixed-width text cell (right-aligned by default) so that columns line up
+// across rows regardless of the text width.
+function cell(row, text, width, font, color, align = "right") {
   const c = row.addStack();
   c.size = new Size(width, 0);
-  c.addSpacer();
+  if (align === "right") c.addSpacer();
   const t = c.addText(text);
   t.font = font;
   t.textColor = color;
   t.lineLimit = 1;
+  t.minimumScaleFactor = 0.7;
+  if (align === "left") c.addSpacer();
   return t;
 }
 
@@ -423,18 +425,14 @@ function multiList(items, maxRows) {
       e.lineLimit = 1;
       e.minimumScaleFactor = 0.7;
     } else {
+      // Every element has a fixed width, so both halves line up across rows.
       [["5h", d.session], ["7d", d.weekly]].forEach(([label, win], j) => {
-        const l = row.addText(label);
-        l.font = Font.semiboldSystemFont(10);
-        l.textColor = COLORS.dim;
-        row.addSpacer(3);
-        const img = row.addImage(barImage(win ? win.pct : 0, 44, 6));
-        img.imageSize = new Size(44, 6);
+        cell(row, label, 16, Font.semiboldSystemFont(10), COLORS.dim, "left");
+        addBar(row, win ? win.pct : 0, 44, 6);
         cell(row, pctText(win), 34, Font.boldRoundedSystemFont(11), win ? colorFor(win.pct) : COLORS.dim);
-        const r = row.addText(win && win.resetsAt ? ` ${timeLeft(win.resetsAt, true)}` : "");
-        r.font = Font.systemFont(9);
-        r.textColor = COLORS.dim;
-        r.lineLimit = 1;
+        row.addSpacer(4);
+        cell(row, win && win.resetsAt ? timeLeft(win.resetsAt, true) : "", 38,
+          Font.systemFont(9), COLORS.dim, "left");
         if (j === 0) row.addSpacer();
       });
     }
